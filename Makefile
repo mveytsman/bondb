@@ -19,7 +19,7 @@ test:
 	@go test -v ./...
 
 retest:
-	@make test; reflex -g "*.go" -- make test
+	@make test; reflex -r "^*\.go$$" -- make test
 
 build:
 	@go build ./... 

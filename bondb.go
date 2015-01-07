@@ -32,21 +32,23 @@ type CanAfterFind interface {
 }
 
 // NOTE: struct tag code borrowed + inspired from https://labix.org/mgo library
+var structMap = make(map[reflect.Type]*structInfo)
+var structMapMutex sync.RWMutex
+
 type structInfo struct {
-	FieldsMap  map[string]fieldInfo
-	FieldsList []fieldInfo
-	Zero       reflect.Value
+	FieldsMap   map[string]fieldInfo
+	FieldsList  []fieldInfo
+	Zero        reflect.Value // necessary....?
+	PKFieldInfo *fieldInfo    // <=========<< ... or, we should make this a reflect.Field ...?
 }
 
 type fieldInfo struct {
 	Num      int
 	Key      string
+	Tag      reflect.StructTag
 	PK       bool // primary key
 	Required bool // field is required
 }
-
-var structMap = make(map[reflect.Type]*structInfo)
-var structMapMutex sync.RWMutex
 
 func getStructInfo(st reflect.Type) (*structInfo, error) {
 	structMapMutex.RLock()
@@ -55,16 +57,19 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 	if found {
 		return sinfo, nil
 	}
+
 	n := st.NumField()
 	fieldsMap := make(map[string]fieldInfo)
 	fieldsList := make([]fieldInfo, 0, n)
+	var pkFieldInfo *fieldInfo
+
 	for i := 0; i != n; i++ {
 		field := st.Field(i)
 		if field.PkgPath != "" {
 			continue // Private field
 		}
 
-		info := fieldInfo{Num: i, Key: field.Name}
+		info := fieldInfo{Num: i, Key: field.Name, Tag: field.Tag}
 		tag := field.Tag.Get("bondb")
 		if tag == "" && strings.Index(string(field.Tag), ":") < 0 {
 			tag = string(field.Tag)
@@ -79,6 +84,7 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 				switch flag {
 				case "pk":
 					info.PK = true
+					pkFieldInfo = &info
 				case "required":
 					info.Required = true
 				default:
@@ -96,6 +102,7 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 		fieldsMap,
 		fieldsList,
 		reflect.New(st).Elem(),
+		pkFieldInfo,
 	}
 	structMapMutex.Lock()
 	structMap[st] = sinfo

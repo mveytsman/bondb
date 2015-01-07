@@ -5,6 +5,6 @@ import "errors"
 var (
 	// ErrExpectingPointer = db.ErrExpectingPointer
 
-	ErrNonModel       = errors.New("object is not a model")
-	ErrRecordNotFound = errors.New("record not found")
+	ErrNoCollectionName = errors.New("unknown collection name")
+	ErrRecordNotFound   = errors.New("record not found")
 )

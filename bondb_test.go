@@ -23,13 +23,11 @@ type Account struct {
 }
 
 func NewAccount() *Account {
-	a := &Account{}
-	a.SetDefaults()
-	return a
+	return &Account{}
 }
 
 func FindAccount() (account *Account, err error) {
-	err = DB.Find(db.Cond{"name": "sup"}).One(&account)
+	err = DB.Q(&account).Where(db.Cond{"name": "sup"}).One()
 	return
 }
 
@@ -37,16 +35,13 @@ func (a *Account) CollectionName() string {
 	return `accounts`
 }
 
-func (a *Account) SetDefaults() { // .. CanSetDefaults ......? which we do before a find..?
-}
-
 func (a *Account) BeforeSave() error {
-	// validations here........
+	// validations can go here..
 	return nil
 }
 
-func (a *Account) FindUser() (user *User, err error) {
-	err = DB.Find(db.Cond{"account_id": a.Id}).One(&user)
+func (a *Account) FindUser() (user User, err error) {
+	err = DB.Query(&user).Where(db.Cond{"account_id": a.Id}).One()
 	return
 }
 
@@ -63,29 +58,26 @@ func (a *Account) ToggleDisabled() error {
 	return nil
 }
 
-// func (a *Account) QueryImages() {
-// 	var images []Image
-// 	// DB.Find(bondb.Cond{"account_id": a.Id}).All(&images)
-// 	DB.FindAll(db.Cond{"account_id": a.Id}, &images)
-// 	a.Images = images
-// }
-
 type User struct {
-	Id       bson.ObjectId `bson:"_id,omitempty"`
-	Username string        `db:"username"`
+	Id bson.ObjectId `bson:"_id,omitempty"`
+	// Id       bson.ObjectId `bson:"_id,omitempty" bondb:",pk"`
+	Username string `db:"username"`
 
 	AccountId bson.ObjectId `bson:"account_id,omitempty"`
 }
 
-func NewUser() *User {
-	return &User{}
+func NewUser() User {
+	return User{}
 }
 
-func (a *User) CollectionName() string {
+func (a User) CollectionName() string {
 	return `users`
 }
 
 //--
+
+// TODO: Mock the database. Currently a mongo database needs to be running
+// in the background to run these tests.
 
 func init() {
 	DB, _ = bondb.NewSession("mongo", db.Settings{
@@ -131,6 +123,7 @@ func TestIntegration(t *testing.T) {
 	// Create
 	account := NewAccount()
 	account.Name = "Joe"
+	account.Disabled = true
 	oid, err := DB.Save(account)
 	assert.NoError(err, "Save new account record")
 	assert.NotNil(oid, "Save returns the new primary key")
@@ -149,14 +142,9 @@ func TestIntegration(t *testing.T) {
 	assert.NoError(err, "Save new account record")
 	assert.NotNil(oid, "Save returns the new primary key")
 
-	// assert.Equal(account2.Id, oid) // TODO ... can we do this automatically with SetID() ..?
-
-	// TODO: what happens if we do a DB.Save(account2) again now..? after its been saved..
-	// currently, it will make a new record..
-
 	// Read
 	account = nil
-	err = DB.Find(db.Cond{"name": "Joe"}).One(&account)
+	err = DB.Query(&account).Where(db.Cond{"name": "Joe"}).One()
 
 	assert.NoError(err, "Read account record")
 	assert.NotNil(account, "Found account record")
@@ -173,12 +161,36 @@ func TestIntegration(t *testing.T) {
 	// TODO
 }
 
+func TestSaveObject(t *testing.T) {
+	assert := assert.New(t)
+	account := &Account{Name: "Object"}
+	oid, err := DB.Save(account)
+	assert.NoError(err, "Saved the object")
+	assert.Equal(account.Id, oid)
+}
+
+func TestSaveValue(t *testing.T) {
+	assert := assert.New(t)
+	user := User{Username: "Value"}
+	oid, err := DB.Save(user)
+	assert.NoError(err, "Saved the value")
+	assert.NotEmpty(oid, "Object id has been returned")
+}
+
+func TestCreate(t *testing.T) {
+	assert := assert.New(t)
+	account := &Account{Name: "Object2"}
+	oid, err := DB.Create(account)
+	assert.NoError(err, "Saved the object")
+	assert.NotEmpty(oid)
+	assert.NotEqual(account.Id, oid)
+	assert.Len(account.Id, 0)
+}
+
 func TestReadOne(t *testing.T) {
 	assert := assert.New(t)
-
 	var account *Account
-	err := DB.Find(db.Cond{"name": "Joe"}).One(&account)
-
+	err := DB.Query(&account).Where(db.Cond{"name": "Joe", "disabled": true}).One()
 	assert.NoError(err, "Read account record")
 	assert.NotNil(account, "Found account record")
 	assert.Equal("Joe", account.Name, "Account named Joe")
@@ -186,10 +198,8 @@ func TestReadOne(t *testing.T) {
 
 func TestReadFirst(t *testing.T) {
 	assert := assert.New(t)
-
 	var account *Account
-	err := DB.Find(db.Cond{}).First(&account)
-
+	err := DB.Query(&account).First()
 	assert.NoError(err, "Read the first record")
 	assert.NotNil(account, "Found first record")
 	assert.Equal("Joe", account.Name)
@@ -197,10 +207,8 @@ func TestReadFirst(t *testing.T) {
 
 func TestReadAll(t *testing.T) {
 	assert := assert.New(t)
-
 	var accounts []*Account
-	err := DB.Find(db.Cond{}).All(&accounts)
-
+	err := DB.Query(&accounts).All()
 	assert.NoError(err, "Read account record")
 	assert.NotEmpty(accounts, "Accounts are not empty..")
 	assert.True(len(accounts) >= 2, "Got two or more accounts")
@@ -212,10 +220,65 @@ func TestHasOne(t *testing.T) {
 	assert := assert.New(t)
 
 	var account *Account
-	DB.Find(db.Cond{"name": "Joe"}).One(&account)
+	DB.Query(&account).Where(db.Cond{"name": "Joe"}).One()
 	assert.Equal("Joe", account.Name, "Account named Joe")
 
 	user, err := account.FindUser()
 	assert.NoError(err, "Found user without error")
 	assert.NotNil(user, "Get user object from the account")
+}
+
+func TestNotFound(t *testing.T) {
+	assert := assert.New(t)
+
+	var accounts []*Account
+	err := DB.Query(&accounts).Where(db.Cond{"name": "blahblah"}).All()
+	assert.NoError(err, "Unable to find object, doesn't cause an error")
+	assert.Empty(accounts, "Found no accounts under that condition")
+
+	var account *Account
+	err = DB.Query(&account).Where(db.Cond{"name": "blahblah"}).One()
+	assert.Error(err, "Looking for a specific object, with not found, does error")
+	assert.Equal(err, db.ErrNoMoreRows)
+	assert.Nil(account, "Found no account under that condition")
+}
+
+func TestSaveExistingItem(t *testing.T) {
+	assert := assert.New(t)
+
+	var account *Account
+	err := DB.Query(&account).Where(db.Cond{"name": "Peter"}).One()
+	assert.NoError(err)
+	pk := account.Id
+
+	account.Name = "Piotr"
+	oid, err := DB.Save(account)
+	assert.NoError(err)
+	assert.Equal(oid, pk, "primary key should not have changed on update")
+
+	var account2 *Account
+	err = DB.Query(&account).Where(db.Cond{"name": "Piotr"}).One()
+	assert.NoError(err)
+	assert.Equal(account2.Name, "Piotr")
+}
+
+// TODO........
+func SkipTestUpdate(t *testing.T) {
+	assert := assert.New(t)
+
+	var account *Account
+	err := DB.Query(&account).Where(db.Cond{"name": "Joe"}).One()
+	assert.NoError(err)
+
+	account.Disabled = false
+	err = DB.Update(account) //, "disabled")
+	assert.NoError(err)
+
+	var account2 *Account
+	err = DB.Query(&account2).Where(db.Cond{"name": "Joe"}).One()
+	assert.NoError(err)
+	assert.Equal(account2.Disabled, false)
+}
+
+func TestDelete(t *testing.T) {
 }

@@ -6,78 +6,116 @@ import (
 	"upper.io/db"
 )
 
-type Query struct {
+type query struct {
 	session *Session
-	cond    db.Cond
-	result  db.Result // .. hmmmmmmm..
+	dst     interface{}
+	dstv    reflect.Value
+	err     error
 
-	// .. we gotta implement the entire db.Result thing here..
+	Collection db.Collection // necessary....?
+	Result     db.Result
 }
 
-func (q Query) One(dst interface{}) error {
+func NewQuery(session *Session, dst interface{}) *query {
+	q := &query{session: session, dst: dst}
+
 	dstv := reflect.ValueOf(dst)
 	if dstv.IsNil() || dstv.Kind() != reflect.Ptr {
-		return db.ErrExpectingPointer
+		q.err = db.ErrExpectingPointer
+		return q
 	}
-	item := reflect.Indirect(dstv).Interface()
+	q.dstv = dstv
 
-	col, err := q.collection(item)
+	col, err := session.reflectCollection(dstv)
 	if err != nil {
-		return err
+		q.err = err
+		return q
 	}
-
-	// var r db.Result
-
-	res := col.Find(q.cond)
-	return res.One(dst)
+	q.Collection = col
+	q.Result = q.Collection.Find(db.Cond{})
+	return q
 }
 
-func (q Query) First(dst interface{}) error {
-	// q2 := q.Limit(1) // q2 ..?
-	return q.One(dst)
+func (q *query) Limit(v uint) *query {
+	q.Result = q.Result.Limit(v)
+	return q
 }
 
-func (q Query) Last(dst interface{}) error {
-	// TODO .. like First() .. but how do we get
-	// the last item from a query..? do we flip the Sort..?
-	return nil
+func (q *query) Skip(v uint) *query {
+	q.Result = q.Result.Skip(v)
+	return q
 }
 
-func (q Query) All(dst interface{}) error {
-	dstv := reflect.ValueOf(dst)
-	if dstv.IsNil() || dstv.Kind() != reflect.Ptr {
-		return db.ErrExpectingPointer
+func (q *query) Sort(v ...interface{}) *query {
+	q.Result = q.Result.Sort(v...)
+	return q
+}
+
+func (q *query) Select(v ...interface{}) *query {
+	q.Result = q.Result.Select(v...)
+	return q
+}
+
+func (q *query) Where(v ...interface{}) *query {
+	q.Result = q.Result.Where(v...)
+	return q
+}
+
+func (q *query) Group(v ...interface{}) *query {
+	q.Result = q.Result.Group(v...)
+	return q
+}
+
+func (q *query) Count() (uint64, error) {
+	return q.Result.Count()
+}
+
+func (q *query) Next(v interface{}) error {
+	return q.Result.Next(v)
+}
+
+func (q *query) One() error {
+	if q.err != nil {
+		return q.err
 	}
-	if dstv.Elem().Kind() != reflect.Slice {
+	return q.Result.One(q.dst)
+}
+
+func (q *query) First() error {
+	if q.err != nil {
+		return q.err
+	}
+	return q.Result.One(q.dst)
+}
+
+// TODO
+func (q *query) Last() error {
+	if q.err != nil {
+		return q.err
+	}
+	return q.Result.One(q.dst)
+}
+
+func (q *query) All() error {
+	if q.err != nil {
+		return q.err
+	}
+	if q.dstv.Elem().Kind() != reflect.Slice {
 		return db.ErrExpectingSlicePointer
 	}
-
-	slicev := dstv.Elem()
-	itemT := slicev.Type().Elem()
-	item := reflect.New(itemT).Elem().Interface()
-
-	col, err := q.collection(item)
-	if err != nil {
-		return err
-	}
-
-	res := col.Find(q.cond)
-	return res.All(dst)
+	return q.Result.All(q.dst)
 }
 
-func (q Query) collection(item interface{}) (db.Collection, error) {
-	var m CanCollectionName
-	if t, ok := item.(CanCollectionName); !ok {
-		return nil, ErrNonModel
-	} else {
-		m = t
-	}
-
-	col, err := q.session.Collection(m.CollectionName())
-	if err != nil && err != db.ErrCollectionDoesNotExist {
-		return nil, err
-	}
-	return col, nil
+// TODO: .. sup..........? what can v be..........?
+// make a note here.. have tests.......
+func (q *query) Update(v interface{}) error {
+	return q.Result.Update(v)
 }
 
-// TODO: .. other query things.. like Where, that returns a Query ..
+func (q *query) Remove() error {
+	return q.Result.Remove()
+}
+
+func (q *query) Close() error {
+	return q.Result.Close()
+}
