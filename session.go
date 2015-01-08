@@ -70,6 +70,9 @@ func (s *Session) Update(item interface{}) error {
 // ^------------- TODO
 // otherwise, just use Create() and Update()
 func (s *Session) Save(item interface{}) (interface{}, error) {
+	// TODO: return a panic if we can't get the collection() as
+	// <type> does not implement CollectionName()
+
 	// TODO: save needs a pointer..
 	itemv := reflect.ValueOf(item)
 
@@ -88,6 +91,7 @@ func (s *Session) Save(item interface{}) (interface{}, error) {
 	var oid interface{}
 
 	pk, err := s.getPrimaryKey(itemv)
+	log.Println("@@@@@@@@@@@@ => WE GOT:", pk, err)
 	if pk == nil {
 		// New
 		oid, err = col.Append(item)
@@ -96,6 +100,7 @@ func (s *Session) Save(item interface{}) (interface{}, error) {
 		}
 	} else {
 		// TODO: .. callbacks......... will need reorg..
+		log.Println("UPDATEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE", pk)
 
 		// Existing
 		s.Update(item)
@@ -121,6 +126,9 @@ func (s *Session) Delete(item interface{}) error {
 func (s *Session) getPrimaryKey(itemv reflect.Value) (interface{}, error) {
 	// .. check isNil...  check isZero...?
 
+	// NOTE: one thing we can check here is, if the value is a pointer, then
+	// just check if its Nil .. if its not, assume it has been set...
+
 	if itemv.Kind() != reflect.Ptr {
 		return nil, db.ErrExpectingPointer
 	}
@@ -134,7 +142,38 @@ func (s *Session) getPrimaryKey(itemv reflect.Value) (interface{}, error) {
 	}
 	log.Println("PRIMARY FIELD...====>", sinfo.PKFieldInfo)
 
-	return nil, nil
+	pkInfo := sinfo.PKFieldInfo
+	if pkInfo == nil {
+		return nil, nil // ...? hmm..
+	}
+
+	// TODO: let's test here if its zero..
+	// or even have a separate method like isPrimaryKeyZero
+	pk := itemp.FieldByName(pkInfo.Key).Interface()
+	if s.zeroPrimaryKey(pk) {
+		return nil, nil
+	} else {
+		return pk, nil
+	}
+}
+
+func (s *Session) zeroPrimaryKey(pk interface{}) bool {
+	// based on upper/db .. what are the kinds of primary key objects
+	// we can have..?
+
+	if huh, ok := pk.(string); ok {
+		log.Println("YES WE CAN MAKE THIS A STRING...", huh)
+	} else {
+		log.Println("NO WE CANT......................................")
+	}
+
+	switch v := pk.(type) {
+	case string:
+		if len(v) > 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Session) setPrimaryKey(itemv reflect.Value, oid interface{}) error {
@@ -157,21 +196,6 @@ func (s *Session) setPrimaryKey(itemv reflect.Value, oid interface{}) error {
 			itemp.FieldByName(fi.Key).Set(reflect.ValueOf(oid))
 		}
 	}
-
-	// if sinfo != nil {
-	// 	for _, si := range sinfo.FieldsList {
-	// 		if si.PK {
-	// 			item := itemp.Interface()
-	// 			_, setter1 := item.(db.IDSetter)
-	// 			_, setter2 := item.(db.Int64IDSetter)
-	// 			_, setter3 := item.(db.Uint64IDSetter)
-	// 			if !(setter1 || setter2 || setter3) {
-	// 				itemp.FieldByName(si.Key).Set(reflect.ValueOf(oid))
-	// 			}
-	// 			break
-	// 		}
-	// 	}
-	// }
 	return nil
 }
 
