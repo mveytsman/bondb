@@ -12,7 +12,7 @@ type query struct {
 	dstv    reflect.Value
 	err     error
 
-	Collection db.Collection // necessary....?
+	Collection db.Collection
 	Result     db.Result
 }
 
@@ -26,7 +26,7 @@ func NewQuery(session *Session, dst interface{}) *query {
 	}
 	q.dstv = dstv
 
-	col, err := session.reflectCollection(dstv)
+	col, err := session.ReflectCollection(dstv)
 	if err != nil {
 		q.err = err
 		return q
@@ -88,13 +88,7 @@ func (q *query) First() error {
 	return q.Result.One(q.dst)
 }
 
-// TODO
-func (q *query) Last() error {
-	if q.err != nil {
-		return q.err
-	}
-	return q.Result.One(q.dst)
-}
+// TODO: add Last() error method
 
 func (q *query) All() error {
 	if q.err != nil {
@@ -106,10 +100,12 @@ func (q *query) All() error {
 	return q.Result.All(q.dst)
 }
 
-// TODO: .. sup..........? what can v be..........?
-// make a note here.. have tests.......
-func (q *query) Update(v interface{}) error {
-	return q.Result.Update(v)
+// TODO: take a field list.......
+// func (q *query) Update(onlyFields ...string) error {
+
+func (q *query) Update() error {
+	// NOTE: Result.Update() expects a map[string]interface{} or an object with field tags
+	return q.Result.Update(q.dst)
 }
 
 func (q *query) Remove() error {

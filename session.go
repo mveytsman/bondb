@@ -1,7 +1,6 @@
 package bondb
 
 import (
-	"log"
 	"reflect"
 	"sync"
 
@@ -34,46 +33,7 @@ func (s *Session) Q(dst interface{}) *query {
 }
 
 func (s *Session) Create(item interface{}) (interface{}, error) {
-	col, err := s.getCollection(item)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: make sure to call callbacks
-
-	return col.Append(item)
-}
-
-// can we specify the specific fields........? like
-// bondb.Fields{"a", "b", "c"}
-// or like: DB.Update(account, "name", "created_at")
-// func (s *Session) Update(item interface{}, fields ...string) error {
-
-func (s *Session) Update(item interface{}) error {
-	col, err := s.getCollection(item)
-	if err != nil {
-		return err
-	}
-	_ = col
-
-	// TODO: only allow this to work if we have a primary key..
-	// so we know the _id ...
-	// q := s.Query(item).Id(s.getPrimaryKey(reflect.ValueOf(item)))
-
-	// TODO: make sure to call callbacks.....
-
-	// return q.Update(item)
-	return nil
-}
-
-// NOTE: a pk must be set on an item's struct tags in order to use this method
-// ^------------- TODO
-// otherwise, just use Create() and Update()
-func (s *Session) Save(item interface{}) (interface{}, error) {
-	// TODO: save needs a pointer..
-	itemv := reflect.ValueOf(item)
-
-	col, err := s.getCollection(item)
+	col, err := s.GetCollection(item)
 	if err != nil {
 		return nil, err
 	}
@@ -87,21 +47,7 @@ func (s *Session) Save(item interface{}) (interface{}, error) {
 
 	var oid interface{}
 
-	pk, err := s.getPrimaryKey(itemv)
-	if pk == nil {
-		// New
-		oid, err = col.Append(item)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// TODO: .. callbacks......... will need reorg..
-
-		// Existing
-		s.Update(item)
-	}
-
-	err = s.setPrimaryKey(itemv, oid)
+	oid, err = col.Append(item)
 	if err != nil {
 		return nil, err
 	}
@@ -115,67 +61,11 @@ func (s *Session) Save(item interface{}) (interface{}, error) {
 
 // TODO: delete one or a slice of objects..
 func (s *Session) Delete(item interface{}) error {
+	// NOTE: requires PrimaryKey functionality..
 	return nil
 }
 
-func (s *Session) getPrimaryKey(itemv reflect.Value) (interface{}, error) {
-	// .. check isNil...  check isZero...?
-
-	if itemv.Kind() != reflect.Ptr {
-		return nil, db.ErrExpectingPointer
-	}
-	// if itemv.IsNil() {
-	// 	return nil, nil
-	// }
-	itemp := reflect.Indirect(itemv)
-	sinfo, err := getStructInfo(itemp.Type())
-	if err != nil {
-		return nil, err
-	}
-	log.Println("PRIMARY FIELD...====>", sinfo.PKFieldInfo)
-
-	return nil, nil
-}
-
-func (s *Session) setPrimaryKey(itemv reflect.Value, oid interface{}) error {
-	if itemv.Kind() != reflect.Ptr {
-		return nil // skip, we need a pointer
-	}
-	itemp := reflect.Indirect(itemv)
-	sinfo, err := getStructInfo(itemp.Type())
-	if err != nil {
-		return err
-	}
-
-	if sinfo.PKFieldInfo != nil {
-		fi := sinfo.PKFieldInfo
-		item := itemp.Interface()
-		_, setter1 := item.(db.IDSetter)
-		_, setter2 := item.(db.Int64IDSetter)
-		_, setter3 := item.(db.Uint64IDSetter)
-		if !(setter1 || setter2 || setter3) {
-			itemp.FieldByName(fi.Key).Set(reflect.ValueOf(oid))
-		}
-	}
-
-	// if sinfo != nil {
-	// 	for _, si := range sinfo.FieldsList {
-	// 		if si.PK {
-	// 			item := itemp.Interface()
-	// 			_, setter1 := item.(db.IDSetter)
-	// 			_, setter2 := item.(db.Int64IDSetter)
-	// 			_, setter3 := item.(db.Uint64IDSetter)
-	// 			if !(setter1 || setter2 || setter3) {
-	// 				itemp.FieldByName(si.Key).Set(reflect.ValueOf(oid))
-	// 			}
-	// 			break
-	// 		}
-	// 	}
-	// }
-	return nil
-}
-
-func (s *Session) getCollection(item interface{}) (db.Collection, error) {
+func (s *Session) GetCollection(item interface{}) (db.Collection, error) {
 	if i, ok := item.(CanCollectionName); ok {
 		s.collectionsLock.Lock()
 		defer s.collectionsLock.Unlock()
@@ -197,7 +87,7 @@ func (s *Session) getCollection(item interface{}) (db.Collection, error) {
 	}
 }
 
-func (s *Session) reflectCollection(v reflect.Value) (db.Collection, error) {
+func (s *Session) ReflectCollection(v reflect.Value) (db.Collection, error) {
 	var item interface{}
 	if v.IsNil() || v.Kind() != reflect.Ptr {
 		return nil, db.ErrExpectingPointer
@@ -209,5 +99,5 @@ func (s *Session) reflectCollection(v reflect.Value) (db.Collection, error) {
 	} else {
 		item = reflect.Indirect(v).Interface()
 	}
-	return s.getCollection(item)
+	return s.GetCollection(item)
 }
