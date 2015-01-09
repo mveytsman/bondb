@@ -41,3 +41,7 @@ type Photo struct {
 	Title  string        `db:"title"`
 	URL    string        `db:"url"`
 }
+
+func (p *Photo) CollectionName() string {
+	return "photos"
+}

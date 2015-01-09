@@ -162,9 +162,7 @@ func (s *Session) getPrimaryKey(itemv reflect.Value) (interface{}, string, error
 	itemp := reflect.Indirect(itemv)
 
 	var i reflect.Value
-	if itemv.Kind() == reflect.Struct {
-		i = itemv
-	} else if itemp.Kind() == reflect.Struct {
+	if itemp.Kind() == reflect.Struct {
 		i = itemp
 	} else {
 		i = reflect.Indirect(itemp)
@@ -177,7 +175,6 @@ func (s *Session) getPrimaryKey(itemv reflect.Value) (interface{}, string, error
 	if err != nil {
 		return nil, "", err
 	}
-
 	pkInfo := sinfo.PKFieldInfo
 	if pkInfo == nil {
 		return nil, pkInfo.Key, nil // ...? hmm.. return error...?
