@@ -45,15 +45,13 @@ func (a *Account) FindUser() (user User, err error) {
 	return
 }
 
-func (a *Account) ToggleDisabled() error {
+func (a *Account) ToggleDisabled() (err error) {
 	a.Disabled = !a.Disabled
 
 	// TODO:
 	// return DB.Update(a, "disabled")
-
-	// NOTE: updating is quite verbose
-	q := DB.Query(&a).Where(db.Cond{"_id": a.Id})
-	return q.Update()
+	_, err = DB.Save(a)
+	return
 }
 
 type User struct {
@@ -122,7 +120,6 @@ func TestIntegration(t *testing.T) {
 	oid, err := DB.Create(account)
 	assert.NoError(err, "Create new account record")
 	assert.NotNil(oid, "Create returns the new primary key")
-	// assert.Equal(account.Id, oid, "Automatically sets the primary key on the account")
 
 	user := NewUser()
 	user.Username = "joepro"
@@ -268,11 +265,23 @@ func TestSave(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(oid, account.Id)
 
-	var accountChk *Account
-	err = DB.Query(&accountChk).Where(db.Cond{"_id": oid}).One()
+	accountChk := &Account{}
+	err = DB.Query(&accountChk).Id(oid)
 	assert.NoError(err)
 	assert.Equal("Jules", accountChk.Name)
 }
 
 func TestDelete(t *testing.T) {
+	assert := assert.New(t)
+
+	var account *Account
+	err := DB.Query(&account).Where(db.Cond{"name": "Piotr"}).One()
+	assert.NoError(err)
+
+	err = DB.Delete(account)
+	assert.NoError(err)
+
+	var accountChk *Account
+	err = DB.Query(&accountChk).Where(db.Cond{"name": "Piotr"}).One()
+	assert.Error(err)
 }

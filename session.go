@@ -55,12 +55,6 @@ func (s *Session) Create(item interface{}) (interface{}, error) {
 }
 
 func (s *Session) Save(item interface{}) (interface{}, error) {
-	// TODO: return a panic if we can't get the collection() as
-	// <type> does not implement CollectionName()
-
-	// TODO: save needs a pointer..
-	itemv := reflect.ValueOf(item)
-
 	col, err := s.GetCollection(item)
 	if err != nil {
 		return nil, err
@@ -73,6 +67,7 @@ func (s *Session) Save(item interface{}) (interface{}, error) {
 		}
 	}
 
+	itemv := reflect.ValueOf(item)
 	oid, idkey, err := s.getPrimaryKey(itemv)
 	if err != nil {
 		return nil, err
@@ -102,9 +97,22 @@ func (s *Session) Save(item interface{}) (interface{}, error) {
 	return oid, nil
 }
 
-// TODO: delete one or a slice of objects..
 func (s *Session) Delete(item interface{}) error {
-	// NOTE: requires PrimaryKey functionality..
+	col, err := s.GetCollection(item)
+	if err != nil {
+		return err
+	}
+
+	itemv := reflect.ValueOf(item)
+	oid, idkey, err := s.getPrimaryKey(itemv)
+	if err != nil {
+		return err
+	}
+
+	err = col.Find(db.Cond{idkey: oid}).Remove()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -146,31 +154,39 @@ func (s *Session) ReflectCollection(v reflect.Value) (db.Collection, error) {
 }
 
 func (s *Session) getPrimaryKey(itemv reflect.Value) (interface{}, string, error) {
-	// .. check isNil...  check isZero...?
-
-	// NOTE: one thing we can check here is, if the value is a pointer, then
-	// just check if its Nil .. if its not, assume it has been set...
-
 	if itemv.Kind() != reflect.Ptr {
 		return nil, "", db.ErrExpectingPointer
 	}
 	itemp := reflect.Indirect(itemv)
-	sinfo, err := getStructInfo(itemp.Type())
+
+	var i reflect.Value
+	if itemv.Kind() == reflect.Struct {
+		i = itemv
+	} else if itemp.Kind() == reflect.Struct {
+		i = itemp
+	} else {
+		i = reflect.Indirect(itemp)
+	}
+	if !i.IsValid() {
+		panic(fmt.Sprintf("invalid type passed: %v", itemv.Type()))
+	}
+
+	sinfo, err := getStructInfo(i.Type())
 	if err != nil {
 		return nil, "", err
 	}
 
 	pkInfo := sinfo.PKFieldInfo
 	if pkInfo == nil {
-		return nil, "", nil // ...? hmm.. return error...?
+		return nil, pkInfo.Key, nil // ...? hmm.. return error...?
 	}
 
-	pk := itemp.FieldByName(pkInfo.Name)
+	pk := i.FieldByName(pkInfo.Name)
 	v := pk.Interface()
 	z := pkInfo.Zero.Interface()
 
 	if v == nil || v == z {
-		return nil, "", nil
+		return nil, pkInfo.Key, nil
 	}
 	return v, pkInfo.Key, nil
 }

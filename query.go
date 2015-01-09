@@ -74,6 +74,14 @@ func (q *query) Next(v interface{}) error {
 	return q.Result.Next(v)
 }
 
+func (q *query) Id(v interface{}) error {
+	_, idkey, err := q.session.getPrimaryKey(q.dstv)
+	if err != nil {
+		return err
+	}
+	return q.Result.Where(db.Cond{idkey: v}).One(q.dst)
+}
+
 func (q *query) One() error {
 	if q.err != nil {
 		return q.err

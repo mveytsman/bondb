@@ -1,10 +1,15 @@
 package bondb
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"sync"
+)
+
+var (
+	ErrNoCollectionName = errors.New("unknown collection name")
 )
 
 type CanCollectionName interface {
