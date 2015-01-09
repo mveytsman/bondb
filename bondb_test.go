@@ -17,7 +17,7 @@ var (
 )
 
 type Account struct {
-	Id       bson.ObjectId `bson:"_id,omitempty"`
+	Id       bson.ObjectId `bson:"_id,omitempty" bondb:",pk"`
 	Name     string        `db:"name"`
 	Disabled bool          `db:"disabled"`
 }
@@ -253,6 +253,25 @@ func TestUpdateItemAfterQuery(t *testing.T) {
 	err = DB.Query(&account2).Where(db.Cond{"name": "Piotr"}).One()
 	assert.NoError(err)
 	assert.Equal(account2.Name, "Piotr")
+}
+
+func TestSave(t *testing.T) {
+	assert := assert.New(t)
+
+	account := &Account{Name: "Julia"}
+	oid, err := DB.Save(account)
+	assert.NoError(err)
+	assert.Equal(oid, account.Id)
+
+	account.Name = "Jules"
+	oid, err = DB.Save(account)
+	assert.NoError(err)
+	assert.Equal(oid, account.Id)
+
+	var accountChk *Account
+	err = DB.Query(&accountChk).Where(db.Cond{"_id": oid}).One()
+	assert.NoError(err)
+	assert.Equal("Jules", accountChk.Name)
 }
 
 func TestDelete(t *testing.T) {

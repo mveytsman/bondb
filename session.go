@@ -1,6 +1,7 @@
 package bondb
 
 import (
+	"fmt"
 	"reflect"
 	"sync"
 
@@ -37,6 +38,33 @@ func (s *Session) Create(item interface{}) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	if i, ok := item.(CanBeforeSave); ok {
+		err := i.BeforeSave()
+		if err != nil {
+			return nil, err
+		}
+	}
+	oid, err := col.Append(item)
+	if err != nil {
+		return nil, err
+	}
+	if i, ok := item.(CanAfterSave); ok {
+		i.AfterSave()
+	}
+	return oid, nil
+}
+
+func (s *Session) Save(item interface{}) (interface{}, error) {
+	// TODO: return a panic if we can't get the collection() as
+	// <type> does not implement CollectionName()
+
+	// TODO: save needs a pointer..
+	itemv := reflect.ValueOf(item)
+
+	col, err := s.GetCollection(item)
+	if err != nil {
+		return nil, err
+	}
 
 	if i, ok := item.(CanBeforeSave); ok {
 		err := i.BeforeSave()
@@ -45,11 +73,26 @@ func (s *Session) Create(item interface{}) (interface{}, error) {
 		}
 	}
 
-	var oid interface{}
-
-	oid, err = col.Append(item)
+	oid, idkey, err := s.getPrimaryKey(itemv)
 	if err != nil {
 		return nil, err
+	}
+	if oid == nil {
+		// New
+		oid, err = col.Append(item)
+		if err != nil {
+			return nil, err
+		}
+		err = s.setPrimaryKey(itemv, oid)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// Existing
+		err := col.Find(db.Cond{idkey: oid}).Update(item)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if i, ok := item.(CanAfterSave); ok {
@@ -100,4 +143,61 @@ func (s *Session) ReflectCollection(v reflect.Value) (db.Collection, error) {
 		item = reflect.Indirect(v).Interface()
 	}
 	return s.GetCollection(item)
+}
+
+func (s *Session) getPrimaryKey(itemv reflect.Value) (interface{}, string, error) {
+	// .. check isNil...  check isZero...?
+
+	// NOTE: one thing we can check here is, if the value is a pointer, then
+	// just check if its Nil .. if its not, assume it has been set...
+
+	if itemv.Kind() != reflect.Ptr {
+		return nil, "", db.ErrExpectingPointer
+	}
+	itemp := reflect.Indirect(itemv)
+	sinfo, err := getStructInfo(itemp.Type())
+	if err != nil {
+		return nil, "", err
+	}
+
+	pkInfo := sinfo.PKFieldInfo
+	if pkInfo == nil {
+		return nil, "", nil // ...? hmm.. return error...?
+	}
+
+	pk := itemp.FieldByName(pkInfo.Name)
+	v := pk.Interface()
+	z := pkInfo.Zero.Interface()
+
+	if v == nil || v == z {
+		return nil, "", nil
+	}
+	return v, pkInfo.Key, nil
+}
+
+func (s *Session) setPrimaryKey(itemv reflect.Value, oid interface{}) error {
+	if itemv.Kind() != reflect.Ptr {
+		return nil // skip, we need a pointer
+	}
+	itemp := reflect.Indirect(itemv)
+	sinfo, err := getStructInfo(itemp.Type())
+	if err != nil {
+		return err
+	}
+	if sinfo.PKFieldInfo != nil {
+		fi := sinfo.PKFieldInfo
+		item := itemp.Interface()
+		_, setter1 := item.(db.IDSetter)
+		_, setter2 := item.(db.Int64IDSetter)
+		_, setter3 := item.(db.Uint64IDSetter)
+		if !(setter1 || setter2 || setter3) {
+			f := itemp.FieldByName(fi.Name)
+			if f.CanSet() {
+				f.Set(reflect.ValueOf(oid))
+			} else {
+				panic(fmt.Sprintf("cannot set the value of type:%s field:sq", itemp.Type(), fi.Name))
+			}
+		}
+	}
+	return nil
 }
