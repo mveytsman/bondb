@@ -54,39 +54,41 @@ func (s *Session) Create(item interface{}) (interface{}, error) {
 	return oid, nil
 }
 
-func (s *Session) Save(item interface{}) (interface{}, error) {
+func (s *Session) Save(item interface{}) error {
 	col, err := s.GetCollection(item)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if i, ok := item.(CanBeforeSave); ok {
 		err := i.BeforeSave()
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
 	itemv := reflect.ValueOf(item)
 	oid, idkey, err := s.getPrimaryKey(itemv)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	// TODO: if idkey == "", then lets panic ..
+	// Save() is just for models that have a pk ..
 	if oid == nil {
 		// New
 		oid, err = col.Append(item)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		err = s.setPrimaryKey(itemv, oid)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	} else {
 		// Existing
 		err := col.Find(db.Cond{idkey: oid}).Update(item)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
@@ -94,7 +96,7 @@ func (s *Session) Save(item interface{}) (interface{}, error) {
 		i.AfterSave()
 	}
 
-	return oid, nil
+	return nil
 }
 
 func (s *Session) Delete(item interface{}) error {

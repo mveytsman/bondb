@@ -18,8 +18,8 @@ var (
 
 type Account struct {
 	Id       bson.ObjectId `bson:"_id,omitempty" bondb:",pk"`
-	Name     string        `db:"name"`
-	Disabled bool          `db:"disabled"`
+	Name     string        `bson:"name"`
+	Disabled bool          `bson:"disabled"`
 }
 
 func NewAccount() *Account {
@@ -50,13 +50,12 @@ func (a *Account) ToggleDisabled() (err error) {
 
 	// TODO:
 	// return DB.Update(a, "disabled")
-	_, err = DB.Save(a)
-	return
+	return DB.Save(a)
 }
 
 type User struct {
 	Id       bson.ObjectId `bson:"_id,omitempty"`
-	Username string        `db:"username"`
+	Username string        `bson:"username"`
 
 	AccountId bson.ObjectId `bson:"account_id,omitempty"`
 }
@@ -256,17 +255,17 @@ func TestSave(t *testing.T) {
 	assert := assert.New(t)
 
 	account := &Account{Name: "Julia"}
-	oid, err := DB.Save(account)
+	err := DB.Save(account)
 	assert.NoError(err)
-	assert.Equal(oid, account.Id)
+	assert.True(len(account.Id) > 1)
 
 	account.Name = "Jules"
-	oid, err = DB.Save(account)
+	err = DB.Save(account)
 	assert.NoError(err)
-	assert.Equal(oid, account.Id)
+	assert.True(len(account.Id) > 1)
 
 	accountChk := &Account{}
-	err = DB.Query(&accountChk).Id(oid)
+	err = DB.Query(&accountChk).ID(account.Id)
 	assert.NoError(err)
 	assert.Equal("Jules", accountChk.Name)
 }

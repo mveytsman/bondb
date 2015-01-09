@@ -74,7 +74,7 @@ func (q *query) Next(v interface{}) error {
 	return q.Result.Next(v)
 }
 
-func (q *query) Id(v interface{}) error {
+func (q *query) ID(v interface{}) error {
 	_, idkey, err := q.session.getPrimaryKey(q.dstv)
 	if err != nil {
 		return err
