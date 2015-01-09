@@ -33,6 +33,7 @@ func main() {
 
 	//--
 
+	// Create
 	u := &User{Name: "Peter", Social: []Social{
 		Social{"twitter", "@peterk", "http://twitter.com/peterk"},
 	}}
@@ -40,14 +41,28 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	log.Println("Saved the new user:", u)
 
+	// Read
+	var uu *User
+	err = DB.Query(&uu).Where(db.Cond{"name": "Peter"}).One()
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Found user:", uu)
+
+	// Update
 	u.Name = "Batman"
 	err = DB.Save(u)
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	log.Println("Updated the user:", u)
+
+	// Delete
+	err = DB.Delete(u)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Deleted user:", u)
 }
