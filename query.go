@@ -110,14 +110,40 @@ func (q *query) All() error {
 
 // TODO: take a field list.......
 // func (q *query) Update(onlyFields ...string) error {
-
 func (q *query) Update() error {
-	// NOTE: Result.Update() expects a map[string]interface{} or an object with field tags
-	return q.Result.Update(q.dst)
+	item := q.dst
+	if i, ok := item.(CanBeforeSave); ok {
+		err := i.BeforeSave()
+		if err != nil {
+			return err
+		}
+	}
+	err := q.Result.Update(q.dst)
+	if err != nil {
+		return err
+	}
+	if i, ok := item.(CanAfterSave); ok {
+		i.AfterSave()
+	}
+	return nil
 }
 
 func (q *query) Remove() error {
-	return q.Result.Remove()
+	item := q.dst
+	if i, ok := item.(CanBeforeDelete); ok {
+		err := i.BeforeDelete()
+		if err != nil {
+			return err
+		}
+	}
+	err := q.Result.Remove()
+	if err != nil {
+		return err
+	}
+	if i, ok := item.(CanAfterDelete); ok {
+		i.AfterDelete()
+	}
+	return nil
 }
 
 func (q *query) Close() error {

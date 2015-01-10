@@ -60,20 +60,21 @@ func (s *Session) Save(item interface{}) error {
 		return err
 	}
 
+	itemv := reflect.ValueOf(item)
+	oid, idkey, err := s.getPrimaryKey(itemv)
+	if err != nil {
+		return err
+	}
+	if idkey == "" {
+		panic("Save() expects a struct with a 'pk' tag defined")
+	}
+
 	if i, ok := item.(CanBeforeSave); ok {
 		err := i.BeforeSave()
 		if err != nil {
 			return err
 		}
 	}
-
-	itemv := reflect.ValueOf(item)
-	oid, idkey, err := s.getPrimaryKey(itemv)
-	if err != nil {
-		return err
-	}
-	// TODO: if idkey == "", then lets panic ..
-	// Save() is just for models that have a pk ..
 	if oid == nil {
 		// New
 		oid, err = col.Append(item)
@@ -91,11 +92,9 @@ func (s *Session) Save(item interface{}) error {
 			return err
 		}
 	}
-
 	if i, ok := item.(CanAfterSave); ok {
 		i.AfterSave()
 	}
-
 	return nil
 }
 
@@ -104,16 +103,23 @@ func (s *Session) Delete(item interface{}) error {
 	if err != nil {
 		return err
 	}
-
+	if i, ok := item.(CanBeforeDelete); ok {
+		err := i.BeforeDelete()
+		if err != nil {
+			return err
+		}
+	}
 	itemv := reflect.ValueOf(item)
 	oid, idkey, err := s.getPrimaryKey(itemv)
 	if err != nil {
 		return err
 	}
-
 	err = col.Find(db.Cond{idkey: oid}).Remove()
 	if err != nil {
 		return err
+	}
+	if i, ok := item.(CanAfterDelete); ok {
+		i.AfterDelete()
 	}
 	return nil
 }
