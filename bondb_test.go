@@ -27,7 +27,7 @@ func NewAccount() *Account {
 }
 
 func FindAccount() (account *Account, err error) {
-	err = DB.Q(&account).Where(db.Cond{"name": "sup"}).One()
+	err = DB.Query(&account).Where(db.Cond{"name": "sup"}).One()
 	return
 }
 
@@ -68,13 +68,45 @@ func (a User) CollectionName() string {
 	return `users`
 }
 
+var AccountCollection db.Collection //= DB.Collection("accounts")
+
+struct Model {
+	Account db.Collection `col:"accounts"`
+	User db.Collection `col:"users"`
+}
+
+type AccountResource struct {
+	Account    `bson:",inline"`
+	ExtraField string
+}
+
 //--
+
+var DB Models
+DB.Account.Find()
+DB.Account.Save()
+
+data.Model.Account.Find()
+content.Model.Asset.Find()
+
+bondb.Save(item)
+
+data.Model.Account.Save() // ... shitty...
 
 func init() {
 	DB, _ = bondb.NewSession("mongo", db.Settings{
 		Host:     "127.0.0.1",
 		Database: "bondb_test",
 	})
+
+	// DB.Account.Find() // this is cool........
+
+	// DB.Models = &Models{DB}
+
+	DB = DBSession.Model(&Model{})
+
+
+	AccountCollection = DB.Collection("accounts")
 }
 
 func dbConnected() bool {
@@ -91,7 +123,7 @@ func dbConnected() bool {
 func dbReset() {
 	cols, _ := DB.Collections()
 	for _, k := range cols {
-		col, err := DB.Collection(k)
+		col, err := DB.Database.Collection(k)
 		if err == nil {
 			col.Truncate()
 		}
@@ -265,6 +297,8 @@ func TestSave(t *testing.T) {
 	assert.True(len(account.Id) > 1)
 
 	accountChk := &Account{}
+	// ***********************************************
+	// var accountChk *Account // TODO .. hmm can we make this work somehow..?
 	err = DB.Query(&accountChk).ID(account.Id)
 	assert.NoError(err)
 	assert.Equal("Jules", accountChk.Name)
@@ -283,4 +317,24 @@ func TestDelete(t *testing.T) {
 	var accountChk *Account
 	err = DB.Query(&accountChk).Where(db.Cond{"name": "Piotr"}).One()
 	assert.Error(err)
+}
+
+func TestEmbeddedModel(t *testing.T) {
+	assert := assert.New(t)
+	var err error
+
+	// var a *Account
+	// err = DB.Query(&a).One()
+	// assert.NoError(err)
+	// assert.NotEmpty(a.Name)
+
+	// var res *accountResource
+	// res := &accountResource{} // <==========<< same issue..
+	// err = DB.Query(&res).One()
+	// assert.NoError(err)
+	// assert.NotEmpty(res.Account.Name)
+
+	var ress []*AccountResource
+	err = DB.Query(&ress).All()
+	assert.NoError(err)
 }

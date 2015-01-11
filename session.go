@@ -2,6 +2,7 @@ package bondb
 
 import (
 	"fmt"
+	"log"
 	"reflect"
 	"sync"
 
@@ -28,9 +29,20 @@ func (s *Session) Query(dst interface{}) *query {
 	return NewQuery(s, dst)
 }
 
-// Short-hand for Query()
-func (s *Session) Q(dst interface{}) *query {
-	return s.Query(dst)
+func (s *Session) Collection(names ...string) db.Collection {
+	s.collectionsLock.Lock()
+	defer s.collectionsLock.Unlock()
+	colName := names[0]
+	col, found := s.collections[colName]
+	if found {
+		return col
+	}
+	col, err := s.Database.Collection(names...)
+	if err != nil && err != db.ErrCollectionDoesNotExist {
+		panic(err)
+	}
+	s.collections[colName] = col
+	return col
 }
 
 func (s *Session) Create(item interface{}) (interface{}, error) {
@@ -129,12 +141,14 @@ func (s *Session) GetCollection(item interface{}) (db.Collection, error) {
 		s.collectionsLock.Lock()
 		defer s.collectionsLock.Unlock()
 
+		log.Println("===== GetCollection =====>", i, item)
+
 		colName := i.CollectionName()
 		col, found := s.collections[colName]
 		if found {
 			return col, nil
 		}
-		col, err := s.Collection(colName)
+		col, err := s.Database.Collection(colName)
 		if err != nil && err != db.ErrCollectionDoesNotExist {
 			return nil, err
 		}
@@ -155,6 +169,27 @@ func (s *Session) ReflectCollection(v reflect.Value) (db.Collection, error) {
 		slicev := v.Elem()
 		itemT := slicev.Type().Elem()
 		item = reflect.New(itemT).Elem().Interface()
+		x := reflect.New(itemT).Elem()
+
+		if !x.IsValid() {
+			log.Println(x, "not valid...")
+		} else {
+			log.Println(x, "is valid..", x.Type())
+			b := reflect.New(x.Type()).Interface()
+			log.Println("we got... B", b)
+
+			if d, ok := b.(CanCollectionName); ok {
+				log.Println("okayy..")
+				log.Println("d=", d.CollectionName())
+			} else {
+				log.Println("not ok")
+			}
+
+			// c, _ := s.GetCollection(&b)
+			// log.Println("collection.....", c)
+		}
+
+		log.Println("======>", item, itemT)
 	} else {
 		item = reflect.Indirect(v).Interface()
 	}
@@ -173,8 +208,13 @@ func (s *Session) getPrimaryKey(itemv reflect.Value) (interface{}, string, error
 	} else {
 		i = reflect.Indirect(itemp)
 	}
+
+	// log.Println("====>", reflect.TypeOf(itemv))
+	// log.Println("====>", reflect.TypeOf(itemp))
+	// log.Println("====>", reflect.TypeOf(i))
+
 	if !i.IsValid() {
-		panic(fmt.Sprintf("invalid type passed: %v", itemv.Type()))
+		panic(fmt.Sprintf("invalid type passed: %v", i.Type()))
 	}
 
 	sinfo, err := getStructInfo(i.Type())

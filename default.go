@@ -1,5 +1,9 @@
 package bondb
 
+import (
+	"upper.io/db"
+)
+
 var DefaultSession *Session
 
 func mustDefaultSession() *Session {
@@ -13,8 +17,8 @@ func Query(dst interface{}) *query {
 	return mustDefaultSession().Query(dst)
 }
 
-func Q(dst interface{}) *query {
-	return Query(dst)
+func Collection(names ...string) db.Collection {
+	return mustDefaultSession().Collection(names...)
 }
 
 func Create(item interface{}) (interface{}, error) {
