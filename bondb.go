@@ -12,9 +12,13 @@ var (
 	ErrNoCollectionName = errors.New("unknown collection name")
 )
 
-type CanCollectionName interface {
-	CollectionName() string
+type Model interface {
+	GetID() interface{} // primary key..
 }
+
+// type CanCollectionName interface {
+// 	CollectionName() string
+// }
 
 type CanBeforeSave interface {
 	BeforeSave() error
