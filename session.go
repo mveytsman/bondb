@@ -170,8 +170,11 @@ func (s *Session) getPrimaryKey(itemv reflect.Value) (interface{}, string, error
 	var i reflect.Value
 	if itemp.Kind() == reflect.Struct {
 		i = itemp
-	} else {
-		i = reflect.Indirect(itemp)
+	} else if itemp.Kind() == reflect.Ptr {
+		i = itemp.Elem()
+		if !i.IsValid() { // and check if is Ptr ..?
+			i = reflect.New(itemp.Type().Elem()).Elem()
+		}
 	}
 	if !i.IsValid() {
 		panic(fmt.Sprintf("invalid type passed: %v", itemv.Type()))

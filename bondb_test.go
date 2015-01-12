@@ -1,6 +1,7 @@
 package bondb_test
 
 import (
+	"log"
 	"os"
 	"testing"
 
@@ -68,6 +69,17 @@ func (a User) CollectionName() string {
 	return `users`
 }
 
+// TODO: test this for mysql.. how to do inline stuff like this..?
+type accountResource struct {
+	Account    `bson:",inline"`
+	ExtraField string `bson:"extra"`
+}
+
+// NOTE: ugly........
+func (a *accountResource) CollectionName() string {
+	return `accounts`
+}
+
 //--
 
 func init() {
@@ -99,6 +111,7 @@ func dbReset() {
 }
 
 func TestMain(t *testing.M) {
+	log.Println("\n\n\n\n")
 	status := 0
 	if dbConnected() {
 		dbReset()
@@ -204,6 +217,13 @@ func TestReadAll(t *testing.T) {
 	assert.True(len(accounts) >= 2, "Got two or more accounts")
 	assert.Equal("Joe", accounts[0].Name)
 	assert.Equal("Pete", accounts[1].Name)
+
+	var users []User
+	err = DB.Query(&users).All()
+	assert.NoError(err, "Read user records")
+	assert.NotEmpty(users, "Users are not empty..")
+	assert.True(len(users) >= 2, "Got two or more users")
+	assert.Equal("joepro", users[0].Username)
 }
 
 func TestHasOne(t *testing.T) {
@@ -264,7 +284,7 @@ func TestSave(t *testing.T) {
 	assert.NoError(err)
 	assert.True(len(account.Id) > 1)
 
-	accountChk := &Account{}
+	var accountChk *Account
 	err = DB.Query(&accountChk).ID(account.Id)
 	assert.NoError(err)
 	assert.Equal("Jules", accountChk.Name)
@@ -283,4 +303,28 @@ func TestDelete(t *testing.T) {
 	var accountChk *Account
 	err = DB.Query(&accountChk).Where(db.Cond{"name": "Piotr"}).One()
 	assert.Error(err)
+}
+
+func TestEmbeddedModel(t *testing.T) {
+	assert := assert.New(t)
+
+	err := DB.Save(&Account{Name: "sup"})
+	assert.NoError(err)
+
+	var a *Account
+	err = DB.Query(&a).One()
+	assert.NoError(err)
+	assert.NotEmpty(a.Name)
+	// log.Println("aaaaaaaaa", a)
+
+	var res *accountResource
+	err = DB.Query(&res).One()
+	assert.NoError(err)
+	// log.Println("mmmmmmmmm", res)
+	assert.NotEmpty(res.Account.Name)
+
+	var ress []*accountResource
+	err = DB.Query(&ress).All()
+	assert.NoError(err)
+	assert.NotEmpty(ress)
 }
