@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	ErrNoCollectionName = errors.New("unknown collection name")
+	ErrUnknownCollectionName = errors.New("unknown collection name")
 )
 
 type CanCollectionName interface {

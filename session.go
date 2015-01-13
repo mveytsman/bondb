@@ -124,26 +124,41 @@ func (s *Session) Delete(item interface{}) error {
 	return nil
 }
 
-func (s *Session) GetCollection(item interface{}) (db.Collection, error) {
-	if i, ok := item.(CanCollectionName); ok {
-		s.collectionsLock.Lock()
-		defer s.collectionsLock.Unlock()
-
-		colName := i.CollectionName()
-		col, found := s.collections[colName]
-		if found {
-			return col, nil
-		}
-		col, err := s.Collection(colName)
-		if err != nil && err != db.ErrCollectionDoesNotExist {
-			return nil, err
-		}
-
-		s.collections[colName] = col
-		return col, nil
-	} else {
-		return nil, ErrNoCollectionName
+func (s *Session) Collection(name string) db.Collection {
+	col, err := s.GetCollection(name)
+	if err != nil {
+		panic(err)
 	}
+	return col
+}
+
+func (s *Session) GetCollection(item interface{}) (db.Collection, error) {
+	var colName string
+	if str, ok := item.(string); ok {
+		colName = str
+	}
+	if colName == "" {
+		if i, ok := item.(CanCollectionName); ok {
+			colName = i.CollectionName()
+		}
+	}
+	if colName == "" {
+		return nil, ErrUnknownCollectionName
+	}
+
+	s.collectionsLock.Lock()
+	defer s.collectionsLock.Unlock()
+
+	col, found := s.collections[colName]
+	if found {
+		return col, nil
+	}
+	col, err := s.Database.Collection(colName)
+	if err != nil && err != db.ErrCollectionDoesNotExist {
+		return nil, err
+	}
+	s.collections[colName] = col
+	return col, nil
 }
 
 func (s *Session) ReflectCollection(v reflect.Value) (db.Collection, error) {
