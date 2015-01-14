@@ -101,9 +101,9 @@ func dbConnected() bool {
 }
 
 func dbReset() {
-	cols, _ := DB.Collections()
+	cols, _ := DB.Database.Collections()
 	for _, k := range cols {
-		col, err := DB.Collection(k)
+		col, err := DB.Database.Collection(k)
 		if err == nil {
 			col.Truncate()
 		}
