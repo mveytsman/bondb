@@ -271,6 +271,26 @@ func TestUpdateItemAfterQuery(t *testing.T) {
 	assert.Equal(account2.Name, "Piotr")
 }
 
+func TestPartialUpdateItemAfterQuery(t *testing.T) {
+	assert := assert.New(t)
+
+	var account *Account
+	q := DB.Query(&account).Where(db.Cond{"name": "Joe"})
+	err := q.One()
+	assert.NoError(err)
+
+	account.Name = "Bob"
+	account.Disabled = false
+	err = q.Update("Disabled")
+	assert.NoError(err)
+
+	var account2 *Account
+	err = DB.Query(&account2).Where(db.Cond{"name": "Joe", "Disabled": true}).One()
+	assert.Error(err)
+	err = DB.Query(&account2).Where(db.Cond{"name": "Joe", "Disabled": false}).One()
+	assert.NoError(err)
+}
+
 func TestSave(t *testing.T) {
 	assert := assert.New(t)
 

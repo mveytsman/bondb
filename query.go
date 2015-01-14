@@ -108,22 +108,23 @@ func (q *query) All() error {
 	return q.Result.All(q.dst)
 }
 
-// TODO: take a field list.......
-// func (q *query) Update(onlyFields ...string) error {
-func (q *query) Update() error {
-	item := q.dst
-	if i, ok := item.(CanBeforeSave); ok {
-		err := i.BeforeSave()
+// empty fieldList updates all fields
+func (q *query) Update(fieldList ...string) error {
+	if len(fieldList) > 0 {
+		updateMap := make(map[string]interface{})
+		s := reflect.Indirect(q.dstv.Elem())
+		for _, field := range fieldList {
+			updateMap[field] = s.FieldByName(field).Interface()
+		}
+		err := q.Result.Update(updateMap)
 		if err != nil {
 			return err
 		}
-	}
-	err := q.Result.Update(q.dst)
-	if err != nil {
-		return err
-	}
-	if i, ok := item.(CanAfterSave); ok {
-		i.AfterSave()
+	} else {
+		err := q.Result.Update(q.dst)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
