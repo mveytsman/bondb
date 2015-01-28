@@ -1,7 +1,6 @@
 package bondb_test
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"testing"
@@ -45,7 +44,6 @@ func (a *Account) BeforeSave() error {
 }
 
 func (a *Account) AfterFind() {
-	fmt.Println("AFTER FOUND CALLED")
 	if a.Name == "" {
 		a.Name = "None found"
 	}
