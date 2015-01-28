@@ -84,7 +84,7 @@ func (q *query) ID(v interface{}) error {
 	if err != nil {
 		return err
 	}
-	q.PostFind()
+	q.AfterFind()
 	return nil
 }
 
@@ -96,7 +96,7 @@ func (q *query) One() error {
 	if err != nil {
 		return err
 	}
-	q.PostFind()
+	q.AfterFind()
 	return nil
 
 }
@@ -109,7 +109,7 @@ func (q *query) First() error {
 	if err != nil {
 		return err
 	}
-	q.PostFind()
+	q.AfterFind()
 	return nil
 
 }
@@ -127,7 +127,7 @@ func (q *query) All() error {
 	if err != nil {
 		return err
 	}
-	q.PostFind()
+	q.AfterFind()
 	return nil
 
 }
@@ -176,7 +176,7 @@ func (q *query) Close() error {
 }
 
 //Called after a find. Converts time fields that need it to UTC and calls AfterFind if exists
-func (q *query) PostFind() {
+func (q *query) AfterFind() {
 	item := q.dstv.Elem().Interface()
 	if i, ok := item.(CanAfterFind); ok {
 		i.AfterFind()
