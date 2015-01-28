@@ -2,6 +2,7 @@ package bondb
 
 import (
 	"reflect"
+	"time"
 
 	"upper.io/db"
 )
@@ -84,7 +85,7 @@ func (q *query) ID(v interface{}) error {
 	if err != nil {
 		return err
 	}
-	q.AfterFind()
+	afterFind(q.dstv)
 	return nil
 }
 
@@ -96,7 +97,7 @@ func (q *query) One() error {
 	if err != nil {
 		return err
 	}
-	q.AfterFind()
+	afterFind(q.dstv)
 	return nil
 
 }
@@ -109,7 +110,7 @@ func (q *query) First() error {
 	if err != nil {
 		return err
 	}
-	q.AfterFind()
+	afterFind(q.dstv)
 	return nil
 
 }
@@ -127,7 +128,10 @@ func (q *query) All() error {
 	if err != nil {
 		return err
 	}
-	q.AfterFind()
+	values := reflect.ValueOf(q.dstv.Elem().Interface())
+	for i := 0; i < values.Len(); i++ {
+		afterFind(values.Index(i))
+	}
 	return nil
 
 }
@@ -176,9 +180,21 @@ func (q *query) Close() error {
 }
 
 //Called after a find. Converts time fields that need it to UTC and calls AfterFind if exists
-func (q *query) AfterFind() {
-	item := q.dstv.Elem().Interface()
-	if i, ok := item.(CanAfterFind); ok {
+func afterFind(val reflect.Value) {
+	//Set time to UTC
+	for val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	si := structMap[val.Type()]
+	if si != nil {
+		for _, fi := range si.FieldsList {
+			if fi.UTC {
+				val.FieldByName(fi.Name).Set(reflect.ValueOf(val.FieldByName(fi.Name).Interface().(time.Time).UTC()))
+			}
+		}
+	}
+	//call structs after find method if possible
+	if i, ok := val.Addr().Interface().(CanAfterFind); ok {
 		i.AfterFind()
 	}
 }

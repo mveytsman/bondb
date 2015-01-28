@@ -1,9 +1,11 @@
 package bondb_test
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/pressly/bondb"
 	"upper.io/db"
@@ -18,9 +20,10 @@ var (
 )
 
 type Account struct {
-	Id       bson.ObjectId `bson:"_id,omitempty" bondb:",pk"`
-	Name     string        `bson:"name"`
-	Disabled bool          `bson:"disabled"`
+	Id        bson.ObjectId `bson:"_id,omitempty" bondb:",pk"`
+	Name      string        `bson:"name"`
+	Disabled  bool          `bson:"disabled"`
+	CreatedAt time.Time     `bson:"created_at" bondb:",utc"`
 }
 
 func NewAccount() *Account {
@@ -42,6 +45,7 @@ func (a *Account) BeforeSave() error {
 }
 
 func (a *Account) AfterFind() {
+	fmt.Println("AFTER FOUND CALLED")
 	if a.Name == "" {
 		a.Name = "None found"
 	}
@@ -364,4 +368,15 @@ func TestAfterFind(t *testing.T) {
 	err := DB.Query(&account2).ID(account.Id)
 	assert.NoError(err)
 	assert.Equal("None found", account2.Name)
+}
+
+func TestUTC(t *testing.T) {
+	assert := assert.New(t)
+	account := &Account{Name: "Joe", CreatedAt: time.Now()}
+	DB.Save(account)
+
+	var account2 *Account
+	err := DB.Query(&account2).ID(account.Id)
+	assert.NoError(err)
+	assert.Equal(time.UTC, account2.CreatedAt.Location())
 }

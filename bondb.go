@@ -54,6 +54,7 @@ type fieldInfo struct {
 	Key      string // db field key
 	PK       bool   // primary key flag
 	Required bool   // required field flag
+	UTC      bool   // convert time to utc
 }
 
 func getStructInfo(st reflect.Type) (*structInfo, error) {
@@ -105,6 +106,12 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 					pkFieldInfo = &info
 				case "required":
 					info.Required = true
+				case "utc":
+					if field.Type.Name() != "Time" {
+						panic(fmt.Sprintf("Unsupported type for utc: %s", field.Type.Name()))
+					}
+					info.UTC = true
+
 				default:
 					panic(fmt.Sprintf("Unsupported flag %q in tag %q of type %s", flag, info.Key, st))
 				}
@@ -115,9 +122,9 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 	}
 
 	sinfo = &structInfo{
-		fieldsList,
-		reflect.New(st).Elem(),
-		pkFieldInfo,
+		FieldsList:  fieldsList,
+		Zero:        reflect.New(st).Elem(),
+		PKFieldInfo: pkFieldInfo,
 	}
 	structMapMutex.Lock()
 	structMap[st] = sinfo
