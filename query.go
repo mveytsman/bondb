@@ -1,7 +1,6 @@
 package bondb
 
 import (
-	"fmt"
 	"reflect"
 
 	"upper.io/db"
@@ -157,7 +156,6 @@ func (q *query) Update(fieldList ...string) error {
 func (q *query) Remove() error {
 	item := q.dstv.Elem().Interface()
 	if i, ok := item.(CanBeforeDelete); ok {
-		fmt.Println(i)
 		err := i.BeforeDelete()
 		if err != nil {
 			return err
