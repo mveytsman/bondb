@@ -190,10 +190,14 @@ func afterFind(val reflect.Value) {
 		for _, fi := range si.FieldsList {
 			if fi.UTC {
 				field := val.FieldByName(fi.Name)
-				if field.Type().Name() == "Time" {
+				if field.Kind() != reflect.Ptr {
 					field.Set(reflect.ValueOf(field.Interface().(time.Time).UTC()))
 				} else { // field is a pointer
-					field.Set(reflect.ValueOf(field.Interface().(*time.Time).UTC()))
+					if !field.IsNil() {
+						t := field.Elem().Interface()
+						newTime := t.(time.Time).UTC()
+						field.Set(reflect.ValueOf(&newTime))
+					}
 				}
 			}
 		}
