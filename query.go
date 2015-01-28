@@ -1,6 +1,7 @@
 package bondb
 
 import (
+	"fmt"
 	"reflect"
 
 	"upper.io/db"
@@ -79,21 +80,39 @@ func (q *query) ID(v interface{}) error {
 	if err != nil {
 		return err
 	}
-	return q.Result.Where(db.Cond{idkey: v}).One(q.dst)
+
+	err = q.Result.Where(db.Cond{idkey: v}).One(q.dst)
+	if err != nil {
+		return err
+	}
+	q.PostFind()
+	return nil
 }
 
 func (q *query) One() error {
 	if q.err != nil {
 		return q.err
 	}
-	return q.Result.One(q.dst)
+	err := q.Result.One(q.dst)
+	if err != nil {
+		return err
+	}
+	q.PostFind()
+	return nil
+
 }
 
 func (q *query) First() error {
 	if q.err != nil {
 		return q.err
 	}
-	return q.Result.One(q.dst)
+	err := q.Result.One(q.dst)
+	if err != nil {
+		return err
+	}
+	q.PostFind()
+	return nil
+
 }
 
 // TODO: add Last() error method
@@ -105,7 +124,13 @@ func (q *query) All() error {
 	if q.dstv.Elem().Kind() != reflect.Slice {
 		return db.ErrExpectingSlicePointer
 	}
-	return q.Result.All(q.dst)
+	err := q.Result.All(q.dst)
+	if err != nil {
+		return err
+	}
+	q.PostFind()
+	return nil
+
 }
 
 // empty fieldList updates all fields
@@ -130,8 +155,9 @@ func (q *query) Update(fieldList ...string) error {
 }
 
 func (q *query) Remove() error {
-	item := q.dst
+	item := q.dstv.Elem().Interface()
 	if i, ok := item.(CanBeforeDelete); ok {
+		fmt.Println(i)
 		err := i.BeforeDelete()
 		if err != nil {
 			return err
@@ -149,4 +175,12 @@ func (q *query) Remove() error {
 
 func (q *query) Close() error {
 	return q.Result.Close()
+}
+
+//Called after a find. Converts time fields that need it to UTC and calls AfterFind if exists
+func (q *query) PostFind() {
+	item := q.dstv.Elem().Interface()
+	if i, ok := item.(CanAfterFind); ok {
+		i.AfterFind()
+	}
 }

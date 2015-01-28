@@ -41,6 +41,12 @@ func (a *Account) BeforeSave() error {
 	return nil
 }
 
+func (a *Account) AfterFind() {
+	if a.Name == "" {
+		a.Name = "None found"
+	}
+}
+
 func (a *Account) FindUser() (user User, err error) {
 	err = DB.Query(&user).Where(db.Cond{"account_id": a.Id}).One()
 	return
@@ -347,4 +353,15 @@ func TestEmbeddedModel(t *testing.T) {
 	err = DB.Query(&ress).All()
 	assert.NoError(err)
 	assert.NotEmpty(ress)
+}
+
+func TestAfterFind(t *testing.T) {
+	assert := assert.New(t)
+	account := &Account{Name: ""}
+	DB.Save(account)
+
+	var account2 *Account
+	err := DB.Query(&account2).ID(account.Id)
+	assert.NoError(err)
+	assert.Equal("None found", account2.Name)
 }
