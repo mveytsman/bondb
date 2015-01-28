@@ -107,7 +107,7 @@ func getStructInfo(st reflect.Type) (*structInfo, error) {
 				case "required":
 					info.Required = true
 				case "utc":
-					if field.Type.Name() != "Time" {
+					if field.Type.Name() != "Time" && field.Type.Elem().Name() != "Time" {
 						panic(fmt.Sprintf("Unsupported type for utc: %s", field.Type.Name()))
 					}
 					info.UTC = true
